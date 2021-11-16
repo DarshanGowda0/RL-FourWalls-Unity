@@ -10,84 +10,64 @@ public class player : Agent
     
     Rigidbody rBody;
     Vector3 target;
+
+    public override void Initialize()
+    {
+        
+        this.MaxStep = 10000;
+        
+    }
+
     void Start()
     {
         rBody = GetComponent<Rigidbody>();
-        target = new Vector3(5f, 2f, 5f);
+        target = new Vector3(5f, 0.5f, 5f);
     }
 
     public override void OnEpisodeBegin()
     {
         this.rBody.angularVelocity = Vector3.zero;
         this.rBody.velocity = Vector3.zero;
-        this.transform.localPosition = new Vector3(-5f, 2f, -5f);
+        this.transform.localPosition = new Vector3(-5f, 0.5f, -5f);
     }
 
     public override void CollectObservations(VectorSensor sensor)
     {
         sensor.AddObservation(this.transform.localPosition);
+        sensor.AddObservation(rBody.velocity.x);
+        sensor.AddObservation(rBody.velocity.z);
     }
 
+    public float forceMultiplier = 10;
     public override void OnActionReceived(ActionBuffers actionBuffers)
     {
-        // 1 branch, 4 actions
-        // number from 0 - 3
-        int direction = actionBuffers.DiscreteActions[0];
-        Debug.Log("Action received "+ direction);
-        if (direction == 0)
-        {
-            transform.position += Vector3.left; 
-        }
-        if (direction == 1)
-        {
-            transform.position += Vector3.right;
-        }
-        if (direction == 2)
-        {
-            transform.position += Vector3.forward;
-        }
-        if (direction == 3)
-        {
-            transform.position += Vector3.back;
-        }
-        float xPos = transform.position[0];
-        float zPos = transform.position[2];
-        xPos = Mathf.Clamp(xPos, -5f, 5f);
-        zPos = Mathf.Clamp(zPos, -5f, 5f);
-        this.transform.position = new Vector3(xPos, 2f, zPos);
+        // Actions, size = 2
+        Vector3 controlSignal = Vector3.zero;
+        controlSignal.x = actionBuffers.ContinuousActions[0];
+        controlSignal.z = actionBuffers.ContinuousActions[1];
+        rBody.AddForce(controlSignal * forceMultiplier);
 
-        // check reward
-        if (this.transform.position == target)
+
+        // Rewards
+        float distanceToTarget = Vector3.Distance(this.transform.localPosition, target);
+
+        // Reached target
+        if (distanceToTarget < .5f)
         {
             SetReward(1.0f);
             EndEpisode();
         }
+
+        if (this.MaxStep > 0) 
+            AddReward(-1f / this.MaxStep);
+        
     }
 
     public override void Heuristic(in ActionBuffers actionsOut)
     {
-        int action = 0;
-        var continuousActionsOut = actionsOut.DiscreteActions;
-        action = Input.GetAxis("Horizontal") > 0? 0: 1;
-        action = Input.GetAxis("Vertical") > 0? 2: 3;
-        // if (Input.GetKey(KeyCode.F))
-        // {
-        //     action = 0;
-        // }
-        // if (Input.GetKey(KeyCode.H))
-        // {
-        //     action = 1;
-        // }
-        // if (Input.GetKey(KeyCode.T))
-        // {
-        //     action = 2;
-        // }
-        // if (Input.GetKey(KeyCode.G))
-        // {
-        //     action = 3;
-        // }
-        Debug.Log("Calling heuristics " + action);
-        continuousActionsOut[0] = action;
+        var continuousActionsOut = actionsOut.ContinuousActions;
+        continuousActionsOut[0] = Input.GetAxis("Horizontal");
+        continuousActionsOut[1] = Input.GetAxis("Vertical");
     }
 
     // Update is called once per frame
